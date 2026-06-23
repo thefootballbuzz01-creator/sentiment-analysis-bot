@@ -1,0 +1,16 @@
+{
+  "buildCommand": "exit 0",
+  "outputDirectory": "reports",
+  "public": false,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "max-age=3600, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
