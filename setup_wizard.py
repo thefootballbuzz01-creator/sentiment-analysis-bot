@@ -39,7 +39,7 @@ def setup_git():
     input("  Press Enter when ready...")
 
     github_username = input("\n  Enter your GitHub username: ").strip()
-    repo_name = "sentiment-analysis-bot"
+    repo_name = "sentiment-analysis-bot2"
 
     print(f"\n  Setting up Git repository...")
 
