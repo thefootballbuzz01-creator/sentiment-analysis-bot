@@ -11,7 +11,7 @@ stays on your computer. Press Ctrl+C in the terminal to stop it.
 import json
 import os
 import webbrowser
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import requests
 
@@ -131,11 +131,15 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def do_GET(self):
+    def _send(self, body, ctype):
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(PAGE.encode("utf-8"))
+        self.wfile.write(body)
+
+    def do_GET(self):
+        self._send(PAGE.encode("utf-8"), "text/html; charset=utf-8")
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -145,10 +149,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             question = ""
         body = json.dumps({"answer": answer(question)}).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(body)
+        self._send(body, "application/json")
 
 
 def main():
@@ -163,7 +164,7 @@ def main():
     except Exception:
         pass
     try:
-        HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+        ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
     except KeyboardInterrupt:
         print("\n  Stopped.\n")
 
