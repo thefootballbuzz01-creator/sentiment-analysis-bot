@@ -190,8 +190,8 @@ def build_report():
     )
     top_neg = cur.fetchall()
 
-    # All negative-comment text per source, for theme/issue detection.
-    cur.execute("SELECT source, text FROM comments WHERE sentiment='Negative'")
+    # All negative comments per source (with author), for theme/issue detection.
+    cur.execute("SELECT source, author, text FROM comments WHERE sentiment='Negative'")
     neg_rows = cur.fetchall()
     conn.close()
 
@@ -273,32 +273,38 @@ def build_report():
     }
 
     def issues_html(source):
-        counts = {k: 0 for k in THEMES}
-        example = {}
-        for src, txt in neg_rows:
+        matches = {k: [] for k in THEMES}
+        for src, author, txt in neg_rows:
             if src != source:
                 continue
             tl = txt.lower()
             for theme, kws in THEMES.items():
                 if any(k in tl for k in kws):
-                    counts[theme] += 1
-                    example.setdefault(theme, txt)
-        ranked = sorted([(t, c) for t, c in counts.items() if c],
-                        key=lambda x: -x[1])[:5]
+                    matches[theme].append((author, txt))
+        ranked = sorted([(t, m) for t, m in matches.items() if m],
+                        key=lambda x: -len(x[1]))[:5]
         if not ranked:
             return '<p class="empty">No clear issues detected yet.</p>'
-        top = ranked[0][1]
+        top = len(ranked[0][1])
         out = []
-        for theme, c in ranked:
+        for theme, ms in ranked:
+            c = len(ms)
             w = round(c / top * 100)
-            eg = esc(example[theme][:90])
             plural = "s" if c != 1 else ""
+            who = []
+            for author, txt in ms[:3]:               # show who raised it
+                who.append(
+                    f'<div class="who"><span class="wa">{esc(author)}</span>'
+                    f'<span class="wq">“{esc(txt[:70])}…”</span></div>'
+                )
+            if c > 3:
+                who.append(f'<div class="wmore">+{c - 3} more</div>')
             out.append(
                 f'<div class="issue"><div class="top">'
                 f'<span class="lbl">{theme}</span>'
                 f'<span class="cnt">{c} mention{plural}</span></div>'
                 f'<div class="track"><div class="fill" style="width:{w}%"></div></div>'
-                f'<div class="eg">“{eg}…”</div></div>'
+                f'<div class="whos">{"".join(who)}</div></div>'
             )
         return "".join(out)
 
@@ -386,7 +392,11 @@ body{font-family:'Inter',system-ui,sans-serif;color:var(--txt);
 .issue .cnt{font-size:.72rem;color:var(--muted);background:var(--glass2);padding:1px 8px;border-radius:6px;white-space:nowrap}
 .issue .track{height:8px;background:rgba(255,255,255,.06);border-radius:5px;overflow:hidden}
 .issue .fill{height:100%;background:var(--neg);border-radius:5px}
-.issue .eg{font-size:.76rem;color:var(--muted);margin-top:6px;font-style:italic;line-height:1.4}
+.whos{margin-top:8px}
+.who{font-size:.76rem;margin-bottom:4px;line-height:1.4}
+.wa{color:var(--txt);font-weight:700;margin-right:6px}
+.wq{color:var(--muted);font-style:italic}
+.wmore{font-size:.72rem;color:var(--muted);margin-top:3px;font-weight:600}
 .foot{text-align:center;color:var(--muted);font-size:.82rem;margin-top:30px;padding-top:20px;border-top:1px solid var(--line)}
 @media(max-width:820px){.vs,.cols,.imp-cols{grid-template-columns:1fr}}
 </style></head><body><div class="wrap">
