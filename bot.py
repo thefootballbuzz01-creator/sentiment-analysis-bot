@@ -48,6 +48,13 @@ CONFIG = os.path.join(BASE, "config.json")
 REPORT = os.path.join(BASE, "report.html")
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
+# "Argos" is also a watch brand and shows up on fragrance channels. These
+# domain words flag comments that clearly aren't about Argos the retailer,
+# so we skip them. Kept specific so genuine shop comments are never dropped.
+OFFTOPIC = ("dial", "bezel", "wristwatch", "sapphire", "quartz",
+            "chronograph", "fragrance", "perfume", "cologne", "aftershave",
+            "eau de", "sillage", "decant", "olympia")
+
 
 # ---------------------------------------------------------------- config
 def load_config():
@@ -131,6 +138,8 @@ def collect_comments(video_id, term, max_comments):
                 break
             text = (c.get("text") or "").strip()
             if len(text) < 3:
+                continue
+            if any(w in text.lower() for w in OFFTOPIC):   # skip watch/fragrance noise
                 continue
             author = c.get("author", "Unknown")
             sentiment, score = analyze(text)

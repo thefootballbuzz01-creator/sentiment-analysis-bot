@@ -1,11 +1,14 @@
 {
   "search_terms": [
-    "Argos review",
-    "Argos customer service",
-    "Argos delivery"
+    "shopping at Argos",
+    "Argos haul",
+    "Argos click and collect",
+    "Argos unboxing",
+    "Argos delivery",
+    "Argos order"
   ],
-  "videos_per_term": 3,
-  "comments_per_video": 60,
+  "videos_per_term": 4,
+  "comments_per_video": 50,
   "google_play_apps": [
     { "package": "com.homeretailgroup.argos.android", "label": "Argos app" }
   ],
