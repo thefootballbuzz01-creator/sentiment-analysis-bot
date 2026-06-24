@@ -1,0 +1,4 @@
+# Extra libraries for the optional "ask your data" (RAG) tool — ask.py
+# Install with:  pip install -r requirements-rag.txt
+anthropic
+python-dotenv
