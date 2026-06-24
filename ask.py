@@ -27,8 +27,9 @@ load_dotenv()
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "sentiment.db")
 
-# Default model. Swap to "claude-haiku-4-5" in .env (ASK_MODEL) for cheaper/faster answers.
-MODEL = os.getenv("ASK_MODEL", "claude-opus-4-8")
+# Default model: Haiku — cheapest and fastest. Set ASK_MODEL=claude-opus-4-8 in
+# .env for the most capable (and pricier) answers.
+MODEL = os.getenv("ASK_MODEL", "claude-haiku-4-5")
 TOP_K = 40  # how many of the most relevant comments to feed the model
 
 STOPWORDS = {
