@@ -55,6 +55,11 @@ OFFTOPIC = ("dial", "bezel", "wristwatch", "sapphire", "quartz",
             "chronograph", "fragrance", "perfume", "cologne", "aftershave",
             "eau de", "sillage", "decant", "olympia")
 
+# The dashboard chatbox sends questions to this Cloudflare Worker (the "brain"
+# that holds the Gemini key). Paste your Worker URL here after deploying it
+# (see CLOUDFLARE_SETUP.md). Until then the chatbox shows a friendly notice.
+CHAT_WORKER_URL = os.getenv("CHAT_WORKER_URL", "PASTE_YOUR_WORKER_URL_HERE")
+
 
 # ---------------------------------------------------------------- config
 def load_config():
@@ -202,6 +207,11 @@ def build_report():
     # All negative comments per source (with author), for theme/issue detection.
     cur.execute("SELECT source, author, text FROM comments WHERE sentiment='Negative'")
     neg_rows = cur.fetchall()
+
+    # All comments (trimmed) embedded for the in-page chatbox to search through.
+    cur.execute("SELECT source, sentiment, substr(text,1,220) FROM comments")
+    chat_rows = [{"source": s, "sentiment": se, "text": t}
+                 for s, se, t in cur.fetchall()]
     conn.close()
 
     def esc(s):
@@ -414,6 +424,21 @@ body{font-family:'Inter',system-ui,sans-serif;color:var(--txt);
 .wmoredet>summary:hover{text-decoration:underline}
 .wmoredet[open]>summary{margin-bottom:6px}
 .foot{text-align:center;color:var(--muted);font-size:.82rem;margin-top:30px;padding-top:20px;border-top:1px solid var(--line)}
+.chat{padding:24px;margin-bottom:18px}
+.chat h3{font-size:.8rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px}
+.chat .note{font-size:.85rem;color:var(--muted);margin-bottom:14px}
+.chatlog{display:flex;flex-direction:column;gap:10px;max-height:360px;overflow-y:auto;margin-bottom:14px}
+.cmsg{padding:12px 15px;border-radius:13px;max-width:90%;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;font-size:.92rem}
+.cmsg.me{align-self:flex-end;background:#22d3ee;color:#062a30;font-weight:600}
+.cmsg.bot{align-self:flex-start;background:var(--glass);border:1px solid var(--line)}
+.cmsg.bot.think{color:var(--muted);font-style:italic}
+.chatform{display:flex;gap:10px}
+.chatform input{flex:1;padding:13px 15px;border-radius:11px;border:1px solid var(--line);background:var(--glass);color:var(--txt);font-size:.95rem;outline:none}
+.chatform button{padding:13px 20px;border:0;border-radius:11px;background:#22d3ee;color:#062a30;font-weight:700;cursor:pointer}
+.chatform button:disabled{opacity:.5;cursor:default}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip-q{font-size:.8rem;color:var(--muted);background:var(--glass);border:1px solid var(--line);padding:6px 11px;border-radius:999px;cursor:pointer}
+.chip-q:hover{color:var(--txt);border-color:var(--glass2)}
 @media(max-width:820px){.vs,.cols,.imp-cols{grid-template-columns:1fr}}
 </style></head><body><div class="wrap">
 
@@ -426,6 +451,21 @@ body{font-family:'Inter',system-ui,sans-serif;color:var(--txt);
 </div>
 
 <div class="verdict" style="color:%%VCOLOR%%">%%VERDICT%%</div>
+
+<div class="card-glass chat">
+  <h3>💬 Ask the comments</h3>
+  <div class="note">Type a question — the AI answers using the real comments on this page.</div>
+  <div class="chatlog" id="chatlog"></div>
+  <form class="chatform" id="chatform">
+    <input id="chatq" autocomplete="off" placeholder="e.g. what are the main delivery complaints?">
+    <button id="chatb" type="submit">Ask</button>
+  </form>
+  <div class="chips">
+    <span class="chip-q">What do people dislike about the app?</span>
+    <span class="chip-q">Is delivery or customer service the bigger problem?</span>
+    <span class="chip-q">What do customers praise about Argos?</span>
+  </div>
+</div>
 
 <div class="grid vs">
   <div class="card-glass platform ytb">
@@ -501,7 +541,42 @@ tooltip:{callbacks:{label:(c)=>c.dataset.label+': '+c.parsed.y+'%'}}},
 scales:{x:{grid:{display:false},ticks:{color:GR}},
 y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.06)'},
 ticks:{color:GR,callback:(v)=>v+'%'}}}}});
+
+// ---- in-page chatbox (searches the comments here, asks the Worker brain) ----
+const COMMENTS = %%COMMENTS_JSON%%;
+const WORKER = "%%WORKER_URL%%";
+const CSTOP = new Set("the a an and or but is are was were be to of in on for with about what why how do does did people say saying think argos they it this that i you their there have has".split(" "));
+function cretrieve(q){
+  const terms=[...new Set((q.toLowerCase().match(/[a-z']+/g)||[]))].filter(w=>!CSTOP.has(w)&&w.length>2);
+  return COMMENTS.map(c=>{const tl=c.text.toLowerCase();
+      return {c,h:terms.reduce((a,t)=>a+(tl.includes(t)?1:0),0)};})
+    .filter(x=>x.h>0).sort((a,b)=>b.h-a.h).slice(0,40).map(x=>x.c);
+}
+const clog=document.getElementById('chatlog'),cform=document.getElementById('chatform'),
+      cq=document.getElementById('chatq'),cb=document.getElementById('chatb');
+function cadd(t,cls){const d=document.createElement('div');d.className='cmsg '+cls;
+  d.textContent=t;clog.appendChild(d);clog.scrollTop=clog.scrollHeight;return d;}
+async function cask(q){
+  q=(q||'').trim(); if(!q) return;
+  cadd(q,'me'); cq.value=''; cb.disabled=true;
+  const thinking=cadd('Thinking…','bot think');
+  try{
+    const comments=cretrieve(q);
+    if(!comments.length){thinking.remove();cadd('No comments matched that — try different words.','bot');}
+    else if(WORKER.indexOf('PASTE')>-1){thinking.remove();
+      cadd('The chatbox brain is not connected yet. Deploy the Cloudflare Worker (see CLOUDFLARE_SETUP.md) and paste its URL into the bot.','bot');}
+    else{const r=await fetch(WORKER,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({question:q,comments})});
+      const data=await r.json(); thinking.remove(); cadd(data.answer||'(no answer)','bot');}
+  }catch(e){thinking.remove();cadd('Something went wrong: '+e,'bot');}
+  cb.disabled=false; cq.focus();
+}
+cform.addEventListener('submit',e=>{e.preventDefault();cask(cq.value);});
+document.querySelectorAll('.chip-q').forEach(ch=>ch.addEventListener('click',()=>cask(ch.textContent)));
 </script></body></html>"""
+
+    # Embed the comments for the chatbox to search (escape </ so it can't break the <script>).
+    chat_json = json.dumps(chat_rows, ensure_ascii=False).replace("</", "<\\/")
 
     repl = {
         "%%UPDATED%%": f"{datetime.now():%Y-%m-%d %H:%M}",
@@ -521,6 +596,8 @@ ticks:{color:GR,callback:(v)=>v+'%'}}}}});
         "%%GP_ISSUES%%": issues_html("Google Play"),
         "%%POS_CARDS%%": cards(top_pos, "pos"),
         "%%NEG_CARDS%%": cards(top_neg, "neg"),
+        "%%WORKER_URL%%": CHAT_WORKER_URL,
+        "%%COMMENTS_JSON%%": chat_json,
     }
     for k, v in repl.items():
         template = template.replace(k, v)
