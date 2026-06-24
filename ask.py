@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """
-Ask-your-data (RAG) — ask questions about the collected comments in plain English.
+Ask-your-data — ask questions about the collected comments in plain English.
 
-How it works:
-  1. RETRIEVAL (free, no API): finds the comments most relevant to your question
-     by keyword matching against the local sentiment.db database.
-  2. GENERATION (Claude API): sends ONLY those real comments to Claude and asks it
-     to answer using them — so the answer is grounded in actual feedback, not made up.
+Works in TWO modes, automatically:
+  • FREE mode (default, no key, no money): finds the comments most relevant to
+    your question and summarises them — counts, YouTube vs Google Play split,
+    common themes, and the most relevant real quotes. Runs offline.
+  • AI mode (optional): if an Anthropic API key is present in .env, it also asks
+    Claude to write a fluent answer grounded in those same real comments.
 
 Run:   python ask.py "what do people complain about with delivery?"
    or:  python ask.py        (then type questions interactively)
-
-Needs an Anthropic API key in .env  ->  ANTHROPIC_API_KEY=sk-ant-...
 """
 
 import os
@@ -19,24 +18,40 @@ import re
 import sqlite3
 import sys
 
-from dotenv import load_dotenv
-import anthropic
-
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "sentiment.db")
 
-# Default model: Haiku — cheapest and fastest. Set ASK_MODEL=claude-opus-4-8 in
-# .env for the most capable (and pricier) answers.
+# Used only if you add an Anthropic key. Haiku = cheapest; or ASK_MODEL=claude-opus-4-8.
 MODEL = os.getenv("ASK_MODEL", "claude-haiku-4-5")
-TOP_K = 40  # how many of the most relevant comments to feed the model
+TOP_K = 40
 
 STOPWORDS = {
     "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be",
     "to", "of", "in", "on", "for", "with", "about", "what", "why", "how",
     "do", "does", "did", "people", "say", "saying", "think", "argos", "they",
     "it", "this", "that", "i", "you", "their", "there", "have", "has",
+}
+
+# Same themes the dashboard uses — for grouping complaints/praise by topic.
+THEMES = {
+    "Delivery & dispatch": ["deliver", "dispatch", "courier", "arrive", "late",
+                            "waiting", "shipping", "never arrived"],
+    "App & website": ["app", "login", "log in", "crash", "update", "loading",
+                      "website", "error", "bug", "glitch", "freeze", "slow"],
+    "Stock & availability": ["stock", "unavailable", "availability", "sold out"],
+    "Customer service": ["service", "staff", "support", "rude", "unhelpful",
+                         "response", "contact", "phone", "call"],
+    "Refunds & payment": ["refund", "money", "payment", "charged", "voucher",
+                          "expensive", "price", "fraud"],
+    "Orders & collection": ["order", "cancel", "collection", "collect",
+                            "missing", "wrong item", "reserve"],
+    "Product quality": ["quality", "broken", "faulty", "damaged", "cheap"],
 }
 
 
@@ -60,71 +75,92 @@ def retrieve(question, limit=TOP_K):
     return [r[1:] for r in scored[:limit]]
 
 
-def build_prompt(question, comments):
-    lines = []
-    for i, (source, sentiment, score, text) in enumerate(comments, 1):
-        lines.append(f"[{i}] ({source}, {sentiment}) {text}")
-    block = "\n".join(lines)
-    return (
-        f"Here are real customer comments about Argos collected from YouTube and "
-        f"Google Play:\n\n{block}\n\n"
-        f"Question: {question}\n\n"
-        f"Answer using ONLY the comments above. Be concise and specific. Where it "
-        f"helps, note roughly how many comments raise a point and whether they came "
-        f"from YouTube or Google Play. If the comments don't contain enough "
-        f"information to answer, say so plainly."
+def free_summary(question, comments):
+    """Answer using only retrieval + counting — completely free, no API."""
+    pos = sum(1 for c in comments if c[1] == "Positive")
+    neg = sum(1 for c in comments if c[1] == "Negative")
+    neu = sum(1 for c in comments if c[1] == "Neutral")
+    yt = sum(1 for c in comments if c[0] == "YouTube")
+    gp = sum(1 for c in comments if c[0] == "Google Play")
+    total = len(comments)
+
+    print("\n" + "=" * 70)
+    print(f"  Q: {question}")
+    print("=" * 70)
+    print(f"\n  Found {total} relevant comments  "
+          f"({yt} YouTube · {gp} Google Play)")
+    print(f"  Sentiment:  😊 {pos} positive   😞 {neg} negative   😐 {neu} neutral")
+
+    # Which themes show up among the matched comments
+    theme_counts = {}
+    for _, _, _, text in comments:
+        tl = text.lower()
+        for theme, kws in THEMES.items():
+            if any(k in tl for k in kws):
+                theme_counts[theme] = theme_counts.get(theme, 0) + 1
+    if theme_counts:
+        ranked = sorted(theme_counts.items(), key=lambda x: -x[1])[:4]
+        print("\n  Common topics in these comments:")
+        for theme, n in ranked:
+            print(f"     • {theme}: {n}")
+
+    print("\n  Most relevant comments:")
+    for source, sentiment, score, text in comments[:6]:
+        tag = "YT" if source == "YouTube" else "GP"
+        print(f"     [{tag}/{sentiment}] {text[:90]}")
+    print(f"\n  (free mode — grounded in {total} real comments, no AI service used)\n")
+
+
+def ai_answer(question, comments):
+    """Optional: ask Claude to write a grounded answer (needs an API key)."""
+    import anthropic
+    block = "\n".join(
+        f"[{i}] ({s}, {sent}) {t}"
+        for i, (s, sent, sc, t) in enumerate(comments, 1)
     )
-
-
-SYSTEM = (
-    "You are a customer-insight analyst. You answer questions strictly from the "
-    "customer comments provided in the user's message — never invent feedback, "
-    "numbers, or quotes that aren't supported by them. Quote sparingly and keep "
-    "answers tight and useful for a presentation."
-)
-
-
-def ask(question):
-    comments = retrieve(question)
-    if not comments:
-        print("\nNo comments matched that question. Try different words, or run "
-              "the bot first to collect data.\n")
-        return
-
+    prompt = (
+        f"Here are real customer comments about Argos from YouTube and Google "
+        f"Play:\n\n{block}\n\nQuestion: {question}\n\nAnswer using ONLY these "
+        f"comments. Be concise; note roughly how many raise each point and "
+        f"whether they're YouTube or Google Play. If there isn't enough info, "
+        f"say so."
+    )
     try:
-        client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from the environment
+        client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=MODEL,
-            max_tokens=1024,
-            system=SYSTEM,
-            messages=[{"role": "user", "content": build_prompt(question, comments)}],
+            model=MODEL, max_tokens=1024,
+            system=("You are a customer-insight analyst. Answer strictly from the "
+                    "comments provided; never invent feedback or numbers."),
+            messages=[{"role": "user", "content": prompt}],
         )
-    except anthropic.AuthenticationError:
-        print("\n❌ Your Anthropic API key is missing or invalid.\n"
-              "   Put a valid key in .env as:  ANTHROPIC_API_KEY=sk-ant-...\n"
-              "   Get one at: https://console.anthropic.com/settings/keys\n")
-        return
     except Exception as e:
-        print(f"\n❌ Could not reach the Claude API: {e}\n")
+        print(f"\n  (AI answer unavailable — {type(e).__name__}; showing free "
+              f"summary instead)")
+        free_summary(question, comments)
         return
-
     answer = next((b.text for b in resp.content if b.type == "text"), "")
     print("\n" + "=" * 70)
     print(f"  Q: {question}")
     print("=" * 70)
     print(f"\n{answer}\n")
-    print(f"(answer grounded in {len(comments)} real comments · model: {MODEL})\n")
+    print(f"  (AI answer · grounded in {len(comments)} real comments · {MODEL})\n")
+
+
+def ask(question):
+    comments = retrieve(question)
+    if not comments:
+        print("\n  No comments matched that question. Try different words.\n")
+        return
+    if os.getenv("ANTHROPIC_API_KEY", "").startswith("sk-ant-"):
+        ai_answer(question, comments)
+    else:
+        free_summary(question, comments)
 
 
 def main():
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        print("\n⚠️  No ANTHROPIC_API_KEY found. Add it to .env first — see README.\n")
-        return
-
-    if len(sys.argv) > 1:                       # one-shot:  python ask.py "question"
+    if len(sys.argv) > 1:
         ask(" ".join(sys.argv[1:]))
         return
-
     print("\n💬 Ask anything about the Argos comments (blank line to quit).\n"
           "   e.g. 'what are the main delivery complaints?'\n")
     while True:
