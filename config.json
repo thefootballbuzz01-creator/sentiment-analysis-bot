@@ -1,28 +1,13 @@
 {
-  "youtube": {
-    "enabled": true,
-    "videos": [
-      {
-        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        "label": "Example Video"
-      }
-    ]
-  },
-  "x": {
-    "enabled": true,
-    "searches": [
-      {
-        "query": "python programming",
-        "label": "Python Programming Tweets"
-      },
-      {
-        "query": "machine learning",
-        "label": "Machine Learning Tweets"
-      }
-    ]
-  },
-  "analysis": {
-    "min_comment_length": 3,
-    "max_comments_per_source": 500
-  }
+  "search_terms": [
+    "Argos review",
+    "Argos customer service",
+    "Argos delivery"
+  ],
+  "videos_per_term": 3,
+  "comments_per_video": 60,
+  "google_play_apps": [
+    { "package": "com.homeretailgroup.argos.android", "label": "Argos app" }
+  ],
+  "reviews_per_app": 150
 }
