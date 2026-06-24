@@ -142,12 +142,15 @@ def gemini_answer(question, comments):
     """Free AI answer via Google Gemini (free tier — no card needed)."""
     import requests
     key = os.environ["GEMINI_API_KEY"]
-    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{model}:generateContent?key={key}")
     body = {
         "contents": [{"parts": [{"text": SYSTEM + "\n\n" + _prompt(question, comments)}]}],
-        "generationConfig": {"maxOutputTokens": 1024},
+        # 2.5 models "think" by default, eating the output budget — turn it off and
+        # give plenty of room so the answer isn't truncated.
+        "generationConfig": {"maxOutputTokens": 2048,
+                             "thinkingConfig": {"thinkingBudget": 0}},
     }
     try:
         r = requests.post(url, json=body, timeout=40)
