@@ -556,6 +556,13 @@ const clog=document.getElementById('chatlog'),cform=document.getElementById('cha
       cq=document.getElementById('chatq'),cb=document.getElementById('chatb');
 function cadd(t,cls){const d=document.createElement('div');d.className='cmsg '+cls;
   d.textContent=t;clog.appendChild(d);clog.scrollTop=clog.scrollHeight;return d;}
+function cbuildPrompt(q,comments){
+  var block=comments.map(function(c,i){return '['+(i+1)+'] ('+c.source+', '+c.sentiment+') '+c.text;}).join('\n');
+  return 'Real Argos customer comments from YouTube and Google Play:\n\n'+block+
+    '\n\nQuestion: '+q+'\n\nAnswer using ONLY the comments above. Be concise. Note '+
+    'roughly how many comments raise each point and whether they are YouTube or '+
+    'Google Play. If there is not enough information, say so.';
+}
 async function cask(q){
   q=(q||'').trim(); if(!q) return;
   cadd(q,'me'); cq.value=''; cb.disabled=true;
@@ -563,16 +570,42 @@ async function cask(q){
   try{
     const comments=cretrieve(q);
     if(!comments.length){thinking.remove();cadd('No comments matched that — try different words.','bot');}
-    else if(WORKER.indexOf('PASTE')>-1){thinking.remove();
-      cadd('The chatbox brain is not connected yet. Deploy the Cloudflare Worker (see CLOUDFLARE_SETUP.md) and paste its URL into the bot.','bot');}
-    else{const r=await fetch(WORKER,{method:'POST',headers:{'Content-Type':'application/json'},
+    else if(WORKER.indexOf('PASTE')<0){
+      const r=await fetch(WORKER,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({question:q,comments})});
-      const data=await r.json(); thinking.remove(); cadd(data.answer||'(no answer)','bot');}
-  }catch(e){thinking.remove();cadd('Something went wrong: '+e,'bot');}
+      const data=await r.json(); thinking.remove(); cadd(data.answer||'(no answer)','bot');
+    } else {
+      if(!window.askLocal){thinking.remove();cadd('AI is still loading — give it a few seconds and ask again.','bot');}
+      else{const ans=await window.askLocal(cbuildPrompt(q,comments),function(msg){thinking.textContent=msg;});
+        thinking.remove(); cadd(ans,'bot');}
+    }
+  }catch(e){thinking.remove();cadd('Chatbox error: '+((e&&e.message)?e.message:e),'bot');}
   cb.disabled=false; cq.focus();
 }
 cform.addEventListener('submit',e=>{e.preventDefault();cask(cq.value);});
 document.querySelectorAll('.chip-q').forEach(ch=>ch.addEventListener('click',()=>cask(ch.textContent)));
+</script>
+<script type="module">
+// Runs a small AI model INSIDE the browser — no key, no server. First question
+// downloads the model (~1 min); after that it's cached and fast.
+import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+const LMODEL="Llama-3.2-1B-Instruct-q4f16_1-MLC";
+const LSYS="You are a customer-insight analyst. Answer strictly from the comments provided; never invent feedback, numbers, or quotes. Be concise and useful.";
+let engine=null, loading=null;
+window.askLocal=async function(prompt,onProgress){
+  if(!navigator.gpu) throw new Error("This browser can't run the in-page AI (no WebGPU). Use the latest Chrome or Edge on a computer.");
+  if(!engine){
+    if(onProgress) onProgress("Loading AI model (first time only)…");
+    if(!loading) loading=webllm.CreateMLCEngine(LMODEL,{initProgressCallback:function(p){
+      if(onProgress) onProgress("Loading AI model… "+Math.round((p.progress||0)*100)+"%");}});
+    engine=await loading;
+  }
+  if(onProgress) onProgress("Thinking…");
+  const reply=await engine.chat.completions.create({
+    messages:[{role:"system",content:LSYS},{role:"user",content:prompt}],
+    temperature:0.3, max_tokens:800});
+  return (reply.choices[0].message.content||"").trim();
+};
 </script></body></html>"""
 
     # Embed the comments for the chatbox to search (escape </ so it can't break the <script>).
