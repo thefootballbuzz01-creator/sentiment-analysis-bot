@@ -291,14 +291,17 @@ def build_report():
             c = len(ms)
             w = round(c / top * 100)
             plural = "s" if c != 1 else ""
-            who = []
-            for author, txt in ms[:3]:               # show who raised it
+            def who_line(author, txt):
+                return (f'<div class="who"><span class="wa">{esc(author)}</span>'
+                        f'<span class="wq">“{esc(txt[:70])}…”</span></div>')
+
+            who = [who_line(a, t) for a, t in ms[:3]]   # first 3 always shown
+            if c > 3:                                    # rest behind a toggle
+                extra = "".join(who_line(a, t) for a, t in ms[3:])
                 who.append(
-                    f'<div class="who"><span class="wa">{esc(author)}</span>'
-                    f'<span class="wq">“{esc(txt[:70])}…”</span></div>'
+                    f'<details class="wmoredet"><summary>+{c - 3} more — '
+                    f'click to see who</summary>{extra}</details>'
                 )
-            if c > 3:
-                who.append(f'<div class="wmore">+{c - 3} more</div>')
             out.append(
                 f'<div class="issue"><div class="top">'
                 f'<span class="lbl">{theme}</span>'
@@ -396,7 +399,11 @@ body{font-family:'Inter',system-ui,sans-serif;color:var(--txt);
 .who{font-size:.76rem;margin-bottom:4px;line-height:1.4}
 .wa{color:var(--txt);font-weight:700;margin-right:6px}
 .wq{color:var(--muted);font-style:italic}
-.wmore{font-size:.72rem;color:var(--muted);margin-top:3px;font-weight:600}
+.wmoredet{margin-top:4px}
+.wmoredet>summary{font-size:.73rem;color:#22d3ee;cursor:pointer;font-weight:600;list-style:none;display:inline-block}
+.wmoredet>summary::-webkit-details-marker{display:none}
+.wmoredet>summary:hover{text-decoration:underline}
+.wmoredet[open]>summary{margin-bottom:6px}
 .foot{text-align:center;color:var(--muted);font-size:.82rem;margin-top:30px;padding-top:20px;border-top:1px solid var(--line)}
 @media(max-width:820px){.vs,.cols,.imp-cols{grid-template-columns:1fr}}
 </style></head><body><div class="wrap">
