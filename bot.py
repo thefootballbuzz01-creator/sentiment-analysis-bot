@@ -612,19 +612,26 @@ import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 const LMODEL="Qwen2.5-0.5B-Instruct-q4f16_1-MLC";
 const LSYS="You are a customer-insight analyst. Answer strictly from the comments provided; never invent feedback, numbers, or quotes. Be concise and useful.";
 let engine=null, loading=null;
+function makeWorker(){
+  const code='import { WebWorkerMLCEngineHandler } from "https://esm.run/@mlc-ai/web-llm";'
+    +'const h=new WebWorkerMLCEngineHandler();self.onmessage=(m)=>h.onmessage(m);';
+  return new Worker(URL.createObjectURL(new Blob([code],{type:"text/javascript"})),{type:"module"});
+}
 window.askLocal=async function(prompt,onProgress){
   if(!navigator.gpu) throw new Error("This browser can't run the in-page AI (no WebGPU). Use the latest Chrome or Edge on a computer.");
-  if(!engine){
-    if(onProgress) onProgress("Loading AI model (first time only)…");
-    if(!loading) loading=webllm.CreateMLCEngine(LMODEL,{initProgressCallback:function(p){
-      if(onProgress) onProgress("Loading AI model… "+Math.round((p.progress||0)*100)+"%");}});
-    engine=await loading;
-  }
-  if(onProgress) onProgress("Thinking…");
-  const reply=await engine.chat.completions.create({
-    messages:[{role:"system",content:LSYS},{role:"user",content:prompt}],
-    temperature:0.3, max_tokens:800});
-  return (reply.choices[0].message.content||"").trim();
+  try{
+    if(!engine){
+      if(onProgress) onProgress("Loading AI model (first time only)…");
+      if(!loading) loading=webllm.CreateWebWorkerMLCEngine(makeWorker(),LMODEL,{initProgressCallback:function(p){
+        if(onProgress) onProgress("Loading AI model… "+Math.round((p.progress||0)*100)+"%");}});
+      engine=await loading;
+    }
+    if(onProgress) onProgress("Thinking…");
+    const reply=await engine.chat.completions.create({
+      messages:[{role:"system",content:LSYS},{role:"user",content:prompt}],
+      temperature:0.3, max_tokens:800});
+    return (reply.choices[0].message.content||"").trim();
+  }catch(e){ engine=null; loading=null; throw e; }   // reset so a retry can re-load
 };
 </script></body></html>"""
 
