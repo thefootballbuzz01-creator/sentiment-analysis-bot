@@ -589,7 +589,15 @@ async function cask(q){
         body:JSON.stringify({question:q,comments})});
       const data=await r.json(); thinking.remove(); cadd(data.answer||'(no answer)','bot');
     } else {
-      if(!window.askLocal){thinking.remove();cadd('AI is still loading — give it a few seconds and ask again.','bot');}
+      // Fast path: the local Gemini server (run: python chat.py) if it's up.
+      let fast=null;
+      try{
+        const lr=await fetch('http://localhost:8000/ask',{method:'POST',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+        if(lr.ok){fast=(await lr.json()).answer;}
+      }catch(_){/* server not running — fall back to the in-browser model */}
+      if(fast){thinking.remove();cadd(fast,'bot');}
+      else if(!window.askLocal){thinking.remove();cadd('AI is still loading — give it a few seconds and ask again.','bot');}
       else{const ans=await window.askLocal(cbuildPrompt(q,comments),function(msg){thinking.textContent=msg;});
         thinking.remove(); cadd(ans,'bot');}
     }
@@ -609,7 +617,7 @@ document.getElementById('chatbig').addEventListener('click',()=>panel.classList.
 // Runs a small AI model INSIDE the browser — no key, no server. First question
 // downloads the model (~1 min); after that it's cached and fast.
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
-const LMODEL="Llama-3.2-3B-Instruct-q4f16_1-MLC";
+const LMODEL="Llama-3.2-1B-Instruct-q4f16_1-MLC";
 const LSYS="You are a helpful, knowledgeable assistant. Answer any question clearly and concisely. When the question relates to the Argos customer comments provided, ground your answer in them.";
 let engine=null, loading=null;
 function makeWorker(){
