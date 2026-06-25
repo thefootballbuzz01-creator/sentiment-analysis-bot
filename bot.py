@@ -60,6 +60,10 @@ OFFTOPIC = ("dial", "bezel", "wristwatch", "sapphire", "quartz",
 # (see CLOUDFLARE_SETUP.md). Until then the chatbox shows a friendly notice.
 CHAT_WORKER_URL = os.getenv("CHAT_WORKER_URL", "PASTE_YOUR_WORKER_URL_HERE")
 
+# Optional "Sign in with Google" gate on the dashboard. Paste your Google OAuth
+# Client ID here (see GOOGLE_LOGIN_SETUP.md). Until set, the dashboard is open.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "PASTE_GOOGLE_CLIENT_ID")
+
 
 # ---------------------------------------------------------------- config
 def load_config():
@@ -336,6 +340,7 @@ def build_report():
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
   --bg1:#0b1f33;--bg2:#08363f;--bg3:#0a2a3a;
@@ -450,8 +455,27 @@ body{font-family:'Inter',system-ui,sans-serif;color:var(--txt);
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .chip-q{font-size:.74rem;color:var(--muted);background:var(--glass);border:1px solid var(--line);padding:5px 10px;border-radius:999px;cursor:pointer}
 .chip-q:hover{color:var(--txt);border-color:var(--glass2)}
+#gate{position:fixed;inset:0;background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));
+  display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px}
+.gatebox{text-align:center;color:var(--txt);background:var(--glass);border:1px solid var(--line);
+  border-radius:20px;padding:42px 38px;max-width:420px}
+.gatebox h2{margin:12px 0 6px;font-size:1.5rem}
+.gatebox p{color:var(--muted);margin-bottom:20px}
+.g_id_signin{display:flex;justify-content:center}
+.gatenote{font-size:.8rem;margin-top:16px;color:var(--muted)}
 @media(max-width:820px){.vs,.cols,.imp-cols{grid-template-columns:1fr}}
-</style></head><body><div class="wrap">
+</style></head><body>
+<div id="gate"><div class="gatebox">
+  <div style="font-size:2.4rem">📊</div>
+  <h2>Argos Sentiment Dashboard</h2>
+  <p>Please sign in with Google to view.</p>
+  <div id="g_id_onload" data-client_id="%%GOOGLE_CLIENT_ID%%"
+       data-callback="onGoogleSignIn" data-auto_prompt="false"></div>
+  <div class="g_id_signin" data-type="standard" data-size="large"
+       data-theme="filled_blue" data-shape="pill" data-text="signin_with"></div>
+  <p id="gatenote" class="gatenote"></p>
+</div></div>
+<div class="wrap">
 
 <div class="hero">
   <div>
@@ -543,6 +567,13 @@ body{font-family:'Inter',system-ui,sans-serif;color:var(--txt);
 </div>
 
 <script>
+// --- "Sign in with Google" gate ---
+const GCID="%%GOOGLE_CLIENT_ID%%";
+if(GCID.indexOf('PASTE')>-1 || location.protocol==='file:'){
+  var _g=document.getElementById('gate'); if(_g) _g.style.display='none';   // not set up / opened locally -> no gate
+}
+function onGoogleSignIn(resp){ var g=document.getElementById('gate'); if(g) g.style.display='none'; }
+
 const GR='#9aa0c4';
 Chart.defaults.color=GR;Chart.defaults.font.family="Inter";
 new Chart(document.getElementById('cmp'),{type:'bar',
@@ -577,16 +608,25 @@ function cbuildPrompt(q,comments){
     'Argos or these comments, base your answer on them; otherwise answer from your '+
     'general knowledge.';
 }
+function cacheGet(k){try{return localStorage.getItem('ans:'+k);}catch(_){return null;}}
+function cacheSet(k,v){try{localStorage.setItem('ans:'+k,v);}catch(_){}}
 async function cask(q){
   q=(q||'').trim(); if(!q) return;
   cadd(q,'me'); cq.value=''; cb.disabled=true;
+  const key=q.toLowerCase();
+  const cached=cacheGet(key);
+  if(cached){                       // CACHE HIT — instant, no AI call
+    cadd(cached,'bot'); cadd('⚡ instant — served from cache','bot think');
+    cb.disabled=false; cq.focus(); return;
+  }
   const thinking=cadd('Thinking…','bot think');
+  let ans=null, ok=false;
   try{
     const comments=cretrieve(q);   // may be empty — the AI can still answer generally
     if(WORKER.indexOf('PASTE')<0){
       const r=await fetch(WORKER,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({question:q,comments})});
-      const data=await r.json(); thinking.remove(); cadd(data.answer||'(no answer)','bot');
+      ans=(await r.json()).answer; ok=true;
     } else {
       // Fast path: the local Gemini server (run: python chat.py) if it's up.
       let fast=null;
@@ -595,12 +635,14 @@ async function cask(q){
           headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
         if(lr.ok){fast=(await lr.json()).answer;}
       }catch(_){/* server not running — fall back to the in-browser model */}
-      if(fast){thinking.remove();cadd(fast,'bot');}
-      else if(!window.askLocal){thinking.remove();cadd('AI is still loading — give it a few seconds and ask again.','bot');}
-      else{const ans=await window.askLocal(cbuildPrompt(q,comments),function(msg){thinking.textContent=msg;});
-        thinking.remove(); cadd(ans,'bot');}
+      if(fast){ans=fast; ok=true;}
+      else if(!window.askLocal){ans='AI is still loading — give it a few seconds and ask again.';}
+      else{ans=await window.askLocal(cbuildPrompt(q,comments),function(msg){thinking.textContent=msg;}); ok=true;}
     }
-  }catch(e){thinking.remove();cadd('Chatbox error: '+((e&&e.message)?e.message:e),'bot');}
+  }catch(e){ans='Chatbox error: '+((e&&e.message)?e.message:e);}
+  thinking.remove();
+  cadd(ans||'(no answer)','bot');
+  if(ok && ans){cacheSet(key,ans);}   // store successful answers for next time
   cb.disabled=false; cq.focus();
 }
 cform.addEventListener('submit',e=>{e.preventDefault();cask(cq.value);});
@@ -665,6 +707,7 @@ window.askLocal=async function(prompt,onProgress){
         "%%NEG_CARDS%%": cards(top_neg, "neg"),
         "%%WORKER_URL%%": CHAT_WORKER_URL,
         "%%COMMENTS_JSON%%": chat_json,
+        "%%GOOGLE_CLIENT_ID%%": GOOGLE_CLIENT_ID,
     }
     for k, v in repl.items():
         template = template.replace(k, v)

@@ -78,15 +78,23 @@ def gemini_text(question, comments):
         return None
 
 
+_CACHE = {}   # remembers answers so repeat questions are instant (caching!)
+
+
 def answer(question):
     question = (question or "").strip()
     if not question:
         return "Ask me anything — about Argos, the comments, or in general."
-    comments = retrieve(question)            # may be empty; that's fine now
+    key = question.lower()
+    if key in _CACHE:                         # CACHE HIT — no AI call needed
+        return _CACHE[key] + "\n\n⚡ (instant — served from cache)"
+    comments = retrieve(question)             # may be empty; that's fine now
     txt = gemini_text(question, comments)
     if txt:
         note = f"\n\n— grounded in {len(comments)} real comments" if comments else ""
-        return txt.strip() + note
+        result = txt.strip() + note
+        _CACHE[key] = result                  # store it for next time
+        return result
     return (free_text(question, comments) if comments
             else "The AI service is unavailable right now — try again in a moment.")
 
