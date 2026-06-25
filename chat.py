@@ -42,13 +42,31 @@ def free_text(question, comments):
             f"Most relevant comments:\n{quotes}")
 
 
+CHAT_SYS = ("You are a helpful, knowledgeable assistant. Answer any question "
+            "clearly and concisely. When the question relates to the Argos "
+            "customer comments provided, ground your answer in them.")
+
+
+def build_prompt(question, comments):
+    if comments:
+        block = "\n".join(f"[{i}] ({s}, {sent}) {t}"
+                          for i, (s, sent, sc, t) in enumerate(comments, 1))
+        ctx = ("You may use these real Argos customer comments as context if "
+               "they help:\n\n" + block + "\n\n")
+    else:
+        ctx = ""
+    return (ctx + "Question: " + question + "\n\nAnswer helpfully and concisely. "
+            "If it is about Argos or the comments, base your answer on them; "
+            "otherwise answer from your general knowledge.")
+
+
 def gemini_text(question, comments):
     if not GEM_KEY:
         return None
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{GEM_MODEL}:generateContent?key={GEM_KEY}")
     body = {
-        "contents": [{"parts": [{"text": SYSTEM + "\n\n" + _prompt(question, comments)}]}],
+        "contents": [{"parts": [{"text": CHAT_SYS + "\n\n" + build_prompt(question, comments)}]}],
         "generationConfig": {"maxOutputTokens": 2048,
                              "thinkingConfig": {"thinkingBudget": 0}},
     }
@@ -63,14 +81,14 @@ def gemini_text(question, comments):
 def answer(question):
     question = (question or "").strip()
     if not question:
-        return "Ask me something about the Argos comments."
-    comments = retrieve(question)
-    if not comments:
-        return "No comments matched that question — try different words."
+        return "Ask me anything — about Argos, the comments, or in general."
+    comments = retrieve(question)            # may be empty; that's fine now
     txt = gemini_text(question, comments)
     if txt:
-        return txt.strip() + f"\n\n— grounded in {len(comments)} real comments"
-    return free_text(question, comments)
+        note = f"\n\n— grounded in {len(comments)} real comments" if comments else ""
+        return txt.strip() + note
+    return (free_text(question, comments) if comments
+            else "The AI service is unavailable right now — try again in a moment.")
 
 
 PAGE = """<!DOCTYPE html><html lang="en"><head>

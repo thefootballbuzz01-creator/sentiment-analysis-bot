@@ -582,9 +582,8 @@ async function cask(q){
   cadd(q,'me'); cq.value=''; cb.disabled=true;
   const thinking=cadd('Thinking…','bot think');
   try{
-    const comments=cretrieve(q);
-    if(!comments.length){thinking.remove();cadd('No comments matched that — try different words.','bot');}
-    else if(WORKER.indexOf('PASTE')<0){
+    const comments=cretrieve(q);   // may be empty — the AI can still answer generally
+    if(WORKER.indexOf('PASTE')<0){
       const r=await fetch(WORKER,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({question:q,comments})});
       const data=await r.json(); thinking.remove(); cadd(data.answer||'(no answer)','bot');
