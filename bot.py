@@ -312,7 +312,7 @@ def build_report():
             plural = "s" if c != 1 else ""
             def who_line(author, txt):
                 return (f'<div class="who"><span class="wa">{esc(author)}</span>'
-                        f'<span class="wq">“{esc(txt[:70])}…”</span></div>')
+                        f'<span class="wq">“{esc(txt)}”</span></div>')
 
             who = [who_line(a, t) for a, t in ms[:3]]   # first 3 always shown
             if c > 3:                                    # rest behind a toggle
