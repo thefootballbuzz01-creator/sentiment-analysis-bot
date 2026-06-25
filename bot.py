@@ -740,14 +740,10 @@ def notify(cfg, total, satisfaction):
            f"Open the dashboard: {SITE_URL}")
     headers = {"Title": "Argos sentiment just updated",
                "Tags": "bar_chart", "Click": SITE_URL}
-    email = os.getenv("NTFY_EMAIL") or cfg.get("notify_email", "")
-    if email:
-        headers["Email"] = email          # ntfy.sh will also email you
     try:
         requests.post(f"https://ntfy.sh/{topic}", data=msg.encode("utf-8"),
                       headers=headers, timeout=10)
-        print(f"  🔔 Update notification sent (ntfy topic: {topic}"
-              + (f", email: {email}" if email else "") + ")")
+        print(f"  🔔 Update push notification sent (ntfy topic: {topic})")
     except Exception as e:
         print(f"  ! notification failed: {e}")
 
