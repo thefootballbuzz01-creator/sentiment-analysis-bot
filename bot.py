@@ -572,10 +572,10 @@ function cadd(t,cls){const d=document.createElement('div');d.className='cmsg '+c
   d.textContent=t;clog.appendChild(d);clog.scrollTop=clog.scrollHeight;return d;}
 function cbuildPrompt(q,comments){
   var block=comments.map(function(c,i){return '['+(i+1)+'] ('+c.source+', '+c.sentiment+') '+c.text;}).join('\n');
-  return 'Real Argos customer comments from YouTube and Google Play:\n\n'+block+
-    '\n\nQuestion: '+q+'\n\nAnswer using ONLY the comments above. Be concise. Note '+
-    'roughly how many comments raise each point and whether they are YouTube or '+
-    'Google Play. If there is not enough information, say so.';
+  return 'You may use these real Argos customer comments as context if they help:\n\n'+block+
+    '\n\nQuestion: '+q+'\n\nAnswer the question helpfully and concisely. If it is about '+
+    'Argos or these comments, base your answer on them; otherwise answer from your '+
+    'general knowledge.';
 }
 async function cask(q){
   q=(q||'').trim(); if(!q) return;
@@ -609,8 +609,8 @@ document.getElementById('chatbig').addEventListener('click',()=>panel.classList.
 // Runs a small AI model INSIDE the browser — no key, no server. First question
 // downloads the model (~1 min); after that it's cached and fast.
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
-const LMODEL="Qwen2.5-0.5B-Instruct-q4f16_1-MLC";
-const LSYS="You are a customer-insight analyst. Answer strictly from the comments provided; never invent feedback, numbers, or quotes. Be concise and useful.";
+const LMODEL="Llama-3.2-3B-Instruct-q4f16_1-MLC";
+const LSYS="You are a helpful, knowledgeable assistant. Answer any question clearly and concisely. When the question relates to the Argos customer comments provided, ground your answer in them.";
 let engine=null, loading=null;
 function makeWorker(){
   const code='import { WebWorkerMLCEngineHandler } from "https://esm.run/@mlc-ai/web-llm";'
