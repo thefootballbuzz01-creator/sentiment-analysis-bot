@@ -62,7 +62,9 @@ CHAT_WORKER_URL = os.getenv("CHAT_WORKER_URL", "PASTE_YOUR_WORKER_URL_HERE")
 
 # Optional "Sign in with Google" gate on the dashboard. Paste your Google OAuth
 # Client ID here (see GOOGLE_LOGIN_SETUP.md). Until set, the dashboard is open.
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "PASTE_GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_ID = os.getenv(
+    "GOOGLE_CLIENT_ID",
+    "656962041967-4nt8n94utatvkin8r6qnf41mlv94qtqe.apps.googleusercontent.com")
 
 
 # ---------------------------------------------------------------- config
