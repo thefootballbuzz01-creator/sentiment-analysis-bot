@@ -12,5 +12,7 @@
   "google_play_apps": [
     { "package": "com.homeretailgroup.argos.android", "label": "Argos app" }
   ],
-  "reviews_per_app": 150
+  "reviews_per_app": 150,
+  "notify_topic": "argos-sentiment-fb01",
+  "notify_email": ""
 }

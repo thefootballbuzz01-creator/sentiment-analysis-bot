@@ -680,6 +680,35 @@ window.askLocal=async function(prompt,onProgress){
     return total, pos, neg, neu, satisfaction
 
 
+# ---------------------------------------------------------------- notify
+SITE_URL = "https://thefootballbuzz01-creator.github.io/sentiment-analysis-bot/"
+
+
+def notify(cfg, total, satisfaction):
+    """Send a device push (and optional email) every time the data updates.
+
+    Free via ntfy.sh — no account. Subscribe to your topic in the ntfy phone
+    app or at https://ntfy.sh/<your-topic> to receive the alerts.
+    """
+    topic = os.getenv("NTFY_TOPIC") or cfg.get("notify_topic", "")
+    if not topic:
+        return
+    msg = (f"{total} comments analysed · {satisfaction}% positive.\n"
+           f"Open the dashboard: {SITE_URL}")
+    headers = {"Title": "Argos sentiment just updated",
+               "Tags": "bar_chart", "Click": SITE_URL}
+    email = os.getenv("NTFY_EMAIL") or cfg.get("notify_email", "")
+    if email:
+        headers["Email"] = email          # ntfy.sh will also email you
+    try:
+        requests.post(f"https://ntfy.sh/{topic}", data=msg.encode("utf-8"),
+                      headers=headers, timeout=10)
+        print(f"  🔔 Update notification sent (ntfy topic: {topic}"
+              + (f", email: {email}" if email else "") + ")")
+    except Exception as e:
+        print(f"  ! notification failed: {e}")
+
+
 # ---------------------------------------------------------------- main
 def main():
     print("\n" + "=" * 60)
@@ -715,6 +744,7 @@ def main():
     print(f"     😊 {pos} positive | 😞 {neg} negative | 😐 {neu} neutral")
     print(f"     Customer satisfaction: {satisfaction}%")
     print("=" * 60)
+    notify(cfg, total, satisfaction)   # push/email alert every time it updates
     # When run by Task Scheduler we pass --scheduled, so we DON'T pop open
     # a browser every hour. Running it by hand opens the report for you.
     if "--scheduled" not in sys.argv:
