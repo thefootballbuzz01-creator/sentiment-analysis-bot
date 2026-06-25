@@ -228,9 +228,17 @@ for q, sc, lab, col in ex:
 text(s, "No training, no AI bill — it runs instantly, and you can see exactly "
         "why it chose each label.", 0.7, 6.4, 11.9, 0.5, 15, MUTED, True, BODY)
 s.notes_slide.notes_text_frame.text = (
-    "Read the three examples in three different tones of voice. The point: this "
-    "is explainable — you can always see WHY a comment was scored the way it "
-    "was. That builds trust before the findings.")
+    "Read the three examples in three different tones of voice. WHY VADER: "
+    "(1) it's FREE — no training, no API, no internet — which fits the zero-cost "
+    "project; (2) it was built specifically for short SOCIAL-MEDIA text, so it "
+    "handles the slang, CAPITALS, punctuation and emoji in comments and reviews "
+    "that trip up general tools; (3) it's EXPLAINABLE — rule + dictionary based, "
+    "so you can show exactly which words drove each score (a black-box AI can't); "
+    "(4) it's INSTANT and lightweight, so it scales to hundreds of comments and "
+    "runs hourly for free. Honest limit: it can miss sarcasm and non-English "
+    "text. Why not alternatives? A trained ML model or an LLM scoring every "
+    "comment would be more nuanced but cost money/compute and aren't "
+    "transparent — VADER is the sweet spot for this exact kind of text.")
 
 # ============================================================ 5. PLOT TWIST
 s = slide(LIGHT)
@@ -375,8 +383,10 @@ for i, (big2, lab) in enumerate(stats):
     card(s, x, 3.1, gw, gh)
     text(s, big2, x, 3.5, gw, 1.1, 40, TEAL, True, HEAD, align=PP_ALIGN.CENTER)
     text(s, lab, x, 4.75, gw, 0.8, 15, MUTED, False, BODY, align=PP_ALIGN.CENTER)
-text(s, "From a single question to a living system — built by one person, for "
-        "nothing.", 0.7, 6.1, 12, 0.5, 17, "1F9D63", True, BODY, italic=True)
+card(s, 0.7, 5.85, 11.93, 0.82, fill=NAVY, shadow=True)
+text(s, "🌐  See it live:   https://thefootballbuzz01-creator.github.io/sentiment-analysis-bot/",
+     0.9, 5.85, 11.5, 0.82, 16, CYAN, True, BODY, anchor=MSO_ANCHOR.MIDDLE,
+     align=PP_ALIGN.CENTER)
 s.notes_slide.notes_text_frame.text = (
     "The triumphant beat. It's not a one-off script — it's a living system: "
     "hourly, free, hands-off, and interactive (you can demo the chatbox live "
@@ -390,7 +400,9 @@ text(s, "We just had to build something that listens.", 0.9, 3.0, 11.5, 1.0,
      34, CYAN, True, HEAD, italic=True)
 text(s, "Real data.    Zero cost.    Listening 24/7.", 0.9, 4.6, 11.5, 0.6,
      20, ICE, False, BODY)
-text(s, "Thank you", 0.9, 6.4, 11.5, 0.5, 16, "9FC6D3", False, BODY)
+text(s, "See it yourself:   https://thefootballbuzz01-creator.github.io/sentiment-analysis-bot/",
+     0.9, 5.5, 11.5, 0.5, 16, CYAN, True, BODY)
+text(s, "Thank you", 0.9, 6.45, 11.5, 0.5, 16, "9FC6D3", False, BODY)
 s.notes_slide.notes_text_frame.text = (
     "Land the message, not the tech. The project was never really about code — "
     "it was about listening to people at a scale humans can't. Deliver the two "
