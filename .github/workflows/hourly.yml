@@ -56,7 +56,6 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: Send email notification
-        if: ${{ secrets.GMAIL_APP_PASSWORD != '' }}
         env:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
