@@ -55,23 +55,9 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
 
-      - name: Send email update
-        if: env.GMAIL_APP_PASSWORD != ''
+      - name: Send email notification
+        if: ${{ secrets.GMAIL_APP_PASSWORD != '' }}
         env:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
-        run: python -c "
-import smtplib, os
-from email.mime.text import MIMEText
-pwd = os.environ['GMAIL_APP_PASSWORD']
-to  = os.environ.get('NOTIFY_EMAIL', 'iambzannah@gmail.com')
-msg = MIMEText('Your Argos sentiment dashboard has just been updated.\n\nView it at: https://thefootballbuzz01-creator.github.io/sentiment-analysis-bot/', 'plain')
-msg['Subject'] = 'Argos dashboard updated'
-msg['From']    = 'iambzannah@gmail.com'
-msg['To']      = to
-s = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-s.login('iambzannah@gmail.com', pwd)
-s.sendmail(msg['From'], [to], msg.as_string())
-s.quit()
-print('Email sent to', to)
-"
+        run: python send_notification.py
